@@ -9,8 +9,6 @@ import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Properties;
 import java.util.Random;
 
 import static io.restassured.RestAssured.given;

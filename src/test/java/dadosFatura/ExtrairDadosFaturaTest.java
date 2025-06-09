@@ -14,78 +14,86 @@ import static io.restassured.RestAssured.given;
 
 public class ExtrairDadosFaturaTest {
 
+    private static final String baseUrl = utils.ConfigUtil.get("api.base.url");
+    private static final String token = utils.ConfigUtil.get("api.token");
+    private static final String outputDir = utils.ConfigUtil.get("output.dir");
+    private static final String outputFile = utils.ConfigUtil.get("output.file");
+
     @ParameterizedTest
-    @CsvFileSource(resources = "/contasParaTest/contasTest_venc_04-22.csv", delimiter = '\t')
-    public void extrairDadosFaturaTest(String id_produto, int status_conta, String id_conta, int qtdParcelasVisualizar, String data_vencimento, float valorProxFatura) throws IOException {
+    @CsvFileSource(resources = "/contasParaTest/contasTest_venc_04-22-copia.csv", delimiter = '\t')
+    public void extrairDadosFaturaTest(String idProduto, int statusConta, String idConta, int qtdParcelasVisualizar, String dataVencimento, float valorProxFatura) throws IOException {
 
-        Response body_fatura =
-                given().
-                        header("Content-Type", "application/json").
-                        header("accept", "application/json").
-                        header("access_token", "88bmgAWS130new").
-                when().
-                        get("http://10.75.33.122:7005/v2/api/contas/" + id_conta + "/faturas/fechadas").
-                then().
-                        log().body().
-                        statusCode(HttpStatus.SC_OK).
-                        extract().response();
+        Response faturaResponse = buscarFatura(idConta);
+        Response parcelamentoResponse = buscarParcelamentos(idConta, dataVencimento);
 
-        System.out.println("______________________________________________________________________________________________________________________________________________________");
+        JsonPath faturaJson = faturaResponse.jsonPath();
+        JsonPath parcelamentoJson = parcelamentoResponse.jsonPath();
 
-        Response body_parcelamentos =
-                given().
-                        header("Content-Type", "application/json").
-                        header("accept", "application/json").
-                        header("access_token", "88bmgAWS130new").
-                when().
-                        get("http://10.75.33.122:7005/v2/api/contas/" + id_conta + "/faturas/planos-parcelamento?sort=quantidadeParcelas&sort=asc&dataVencimentoPadrao=" + data_vencimento).
-                then().
-                        log().status().
-                        log().body().
-                        extract().response();
+        float valorTotal = faturaJson.getFloat("content[0].valorTotal");
+        float valorPagamentoMinimo = faturaJson.getFloat("content[0].valorPagamentoMinimo");
+        float valorPagamentoEfetuado = faturaJson.getFloat("content[0].valorPagamentoEfetuado");
+        String dataVencimentoFatura = faturaJson.getString("content[0].dataVencimentoFatura");
 
-        JsonPath pathFatura = body_fatura.jsonPath();
-        JsonPath pathParcelamento = body_parcelamentos.jsonPath();
-
-        int statusCodeParcelamento = body_parcelamentos.getStatusCode();
-
-        // Dados da Fatura para serem escritos no arquivo
-        float valorTotal = pathFatura.getFloat("content[0].valorTotal");
-        float valorPagamentoMinimo = pathFatura.getFloat("content[0].valorPagamentoMinimo");
-        float valorPagamentoEfetuado = pathFatura.getFloat("content[0].valorPagamentoEfetuado");
-        String dataVencimentoFatura = pathFatura.getString("content[0].dataVencimentoFatura");
-
-        // Dados do Parcelamento para serem escritos no arquivo
-        String descricaoServicoTipo = pathParcelamento.getString("content[0].descricaoServicoTipo");
+        String descricaoServicoTipo = parcelamentoJson.getString("content[0].descricaoServicoTipo");
         String quantidadeParcelas = null;
         float valorEntrada = 0;
         String nomeCampanha = null;
 
-        if (statusCodeParcelamento == 200) {
-            // Dados do Parcelamento para serem escritos no arquivo
-            if (descricaoServicoTipo.equals("Parcelamento")) {  // Retorna se as ofertas de parcelamento for CAMPANHA
-                nomeCampanha = pathParcelamento.getString("content[" + (qtdParcelasVisualizar - 1) + "].nomeCampanha");
-                quantidadeParcelas = pathParcelamento.getString("content[" + (qtdParcelasVisualizar - 1) + "].quantidadeParcelas");
-                valorEntrada = pathParcelamento.getFloat("content[" + (qtdParcelasVisualizar - 1) + "].valorEntrada");
-            } else {                                            // Retorna se as ofertas de parcelamento for COMPULSÓRIO
-                nomeCampanha = pathParcelamento.getString("content[0].nomeCampanha");
-                quantidadeParcelas = pathParcelamento.getString("content[0].quantidadeParcelas");
-                valorEntrada = pathParcelamento.getFloat("content[0].valorEntrada");
+        if (parcelamentoResponse.getStatusCode() == HttpStatus.SC_OK) {
+            if ("Parcelamento".equals(descricaoServicoTipo)) {
+                int idx = qtdParcelasVisualizar - 1;
+                nomeCampanha = parcelamentoJson.getString("content[" + idx + "].nomeCampanha");
+                quantidadeParcelas = parcelamentoJson.getString("content[" + idx + "].quantidadeParcelas");
+                valorEntrada = parcelamentoJson.getFloat("content[" + idx + "].valorEntrada");
+            } else {
+                nomeCampanha = parcelamentoJson.getString("content[0].nomeCampanha");
+                quantidadeParcelas = parcelamentoJson.getString("content[0].quantidadeParcelas");
+                valorEntrada = parcelamentoJson.getFloat("content[0].valorEntrada");
             }
         }
 
-        if(valorTotal > valorPagamentoMinimo && (valorPagamentoEfetuado == valorTotal || valorPagamentoEfetuado == valorEntrada)){
-
-                File pastaDeDados = new File("src/test/resources/" + "/arquivoDeDados/");
-                if (!pastaDeDados.exists()) {
-                    pastaDeDados.mkdirs();
-                }
-
-                FileWriter file = new FileWriter("src/test/resources/arquivoDeDados/" + "/" + "arquivo_vencimento_04-22" + ".csv", true);
-                file.write(id_produto + "\t" + status_conta + "\t" + id_conta + "\t" + dataVencimentoFatura + "\t" + valorTotal + "\t" + valorPagamentoMinimo + "\t"
-                        + valorPagamentoEfetuado + "\t" + quantidadeParcelas + "\t" + valorEntrada + "\t" + nomeCampanha + "\t" + valorProxFatura + "\n");
-                file.flush();
-                file.close();
-            }
+        if (valorTotal > valorPagamentoMinimo && (valorPagamentoEfetuado == valorTotal || valorPagamentoEfetuado == valorEntrada)) {
+            salvarDados(idProduto, statusConta, idConta, dataVencimentoFatura, valorTotal, valorPagamentoMinimo,
+                    valorPagamentoEfetuado, quantidadeParcelas, valorEntrada, nomeCampanha, valorProxFatura);
         }
+    }
+
+    private Response buscarFatura(String idConta) {
+        return given()
+                    .header("Content-Type", "application/json")
+                    .header("accept", "application/json")
+                    .header("access_token", token)
+               .when()
+                    .get(baseUrl + "/" + idConta + "/faturas/fechadas")
+               .then()
+                    .statusCode(HttpStatus.SC_OK)
+                    .extract().response();
+    }
+
+    private Response buscarParcelamentos(String idConta, String dataVencimento) {
+        return given()
+                    .header("Content-Type", "application/json")
+                    .header("accept", "application/json")
+                    .header("access_token", token)
+               .when()
+                    .get(baseUrl + "/" + idConta + "/faturas/planos-parcelamento?sort=quantidadeParcelas&sort=asc&dataVencimentoPadrao=" + dataVencimento)
+                .then()
+                    .extract().response();
+    }
+
+    private void salvarDados(String idProduto, int statusConta, String idConta, String dataVencimentoFatura, float valorTotal,
+                             float valorPagamentoMinimo, float valorPagamentoEfetuado, String quantidadeParcelas, float valorEntrada,
+                             String nomeCampanha, float valorProxFatura) throws IOException {
+
+        File pastaDeDados = new File(outputDir);
+        if (!pastaDeDados.exists()) {
+            pastaDeDados.mkdirs();
+        }
+
+        try (FileWriter file = new FileWriter(outputDir + outputFile, true)) {
+            file.write(idProduto + "\t" + statusConta + "\t" + idConta + "\t" + dataVencimentoFatura + "\t" + valorTotal + "\t"
+                    + valorPagamentoMinimo + "\t" + valorPagamentoEfetuado + "\t" + quantidadeParcelas + "\t" + valorEntrada + "\t"
+                    + nomeCampanha + "\t" + valorProxFatura + "\n");
+        }
+    }
 }

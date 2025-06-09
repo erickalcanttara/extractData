@@ -17,19 +17,8 @@ import static io.restassured.RestAssured.given;
 
 public class ContasParaTest {
 
-    private String baseUrl;
-    private String token_base;
-
-    public ContasParaTest() {
-        try (InputStream input = getClass().getClassLoader().getResourceAsStream("config.properties")) {
-            Properties props = new Properties();
-            props.load(input);
-            this.baseUrl = props.getProperty("api.base.url");
-            this.token_base = props.getProperty("api.token");
-        } catch (Exception e) {
-            throw new RuntimeException("Erro ao carregar configurações", e);
-        }
-    }
+    private final String baseUrl = utils.ConfigUtil.get("api.base.url");
+    private final String token_base = utils.ConfigUtil.get("api.token");
 
     @ParameterizedTest
     @CsvFileSource(resources = "/produtosEmTeste/produtos_com_status_conta-venc-04-22.csv", delimiter = '\t', numLinesToSkip = 1)
@@ -86,30 +75,6 @@ public class ContasParaTest {
                 }
             }
         }
-    }
-
-   int getTotalDePaginasPorProduto(int id_produto, int status_conta, String dia_vencimento){
-
-        Response body_contas =
-                getRequestSpec()
-                        .log().uri()
-                .when()
-                        .get(baseUrl + "/contas?idProduto=" + id_produto + "&idStatusConta=" + status_conta + "&diaVencimento=" + dia_vencimento)
-                .then()
-                        .statusCode(HttpStatus.SC_OK)
-                        .extract().response();
-
-        JsonPath pathContas = body_contas.jsonPath();
-
-        int total_de_elementos = pathContas.getInt("totalElements");
-        int total_de_paginas;
-
-        if (total_de_elementos >= 50){
-            total_de_paginas = total_de_elementos / 50;
-        } else {
-            total_de_paginas = 1;
-        }
-        return total_de_paginas;
     }
 
     private RequestSpecification getRequestSpec() {

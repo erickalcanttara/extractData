@@ -20,7 +20,7 @@ public class ExtrairDadosFaturaTest {
     private static final String outputFile = utils.ConfigUtil.get("output.file");
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/contasParaTest/contasTest_venc_04-22-copia.csv", delimiter = '\t')
+    @CsvFileSource(resources = "/contasParaTest/contasTest_vencimento_25.csv", delimiter = '\t')
     public void extrairDadosFaturaTest(String idProduto, int statusConta, String idConta, int qtdParcelasVisualizar, String dataVencimento, float valorProxFatura) throws IOException {
 
         Response faturaResponse = buscarFatura(idConta);
@@ -52,7 +52,12 @@ public class ExtrairDadosFaturaTest {
             }
         }
 
-        if (valorTotal > valorPagamentoMinimo && (valorPagamentoEfetuado == valorTotal || valorPagamentoEfetuado == valorEntrada)) {
+        if (valorTotal > valorPagamentoMinimo && (valorPagamentoEfetuado == valorTotal)) {
+            salvarDados(idProduto, statusConta, idConta, dataVencimentoFatura, valorTotal, valorPagamentoMinimo,
+                    valorPagamentoEfetuado, quantidadeParcelas, valorEntrada, nomeCampanha, valorProxFatura);
+        }
+
+        if (valorEntrada > 0 && (valorPagamentoEfetuado == valorEntrada)) {
             salvarDados(idProduto, statusConta, idConta, dataVencimentoFatura, valorTotal, valorPagamentoMinimo,
                     valorPagamentoEfetuado, quantidadeParcelas, valorEntrada, nomeCampanha, valorProxFatura);
         }

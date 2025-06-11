@@ -20,7 +20,7 @@ public class ExtrairDadosFaturaTest {
     private static final String outputFile = utils.ConfigUtil.get("output.file");
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/contasParaTest/contasTest_vencimento_25.csv", delimiter = '\t')
+    @CsvFileSource(resources = "/contasParaTest/contasTest_venc_25.csv", delimiter = '\t')
     public void extrairDadosFaturaTest(String idProduto, int statusConta, String idConta, int qtdParcelasVisualizar, String dataVencimento, float valorProxFatura) throws IOException {
 
         Response faturaResponse = buscarFatura(idConta);
@@ -69,7 +69,7 @@ public class ExtrairDadosFaturaTest {
                     .header("accept", "application/json")
                     .header("access_token", token)
                .when()
-                    .get(baseUrl + "/" + idConta + "/faturas/fechadas")
+                    .get(baseUrl + "/contas/" + idConta + "/faturas/fechadas")
                .then()
                     .statusCode(HttpStatus.SC_OK)
                     .extract().response();
@@ -81,7 +81,7 @@ public class ExtrairDadosFaturaTest {
                     .header("accept", "application/json")
                     .header("access_token", token)
                .when()
-                    .get(baseUrl + "/" + idConta + "/faturas/planos-parcelamento?sort=quantidadeParcelas&sort=asc&dataVencimentoPadrao=" + dataVencimento)
+                    .get(baseUrl + "/contas/" + idConta + "/faturas/planos-parcelamento?sort=quantidadeParcelas&sort=asc&dataVencimentoPadrao=" + dataVencimento)
                 .then()
                     .extract().response();
     }
